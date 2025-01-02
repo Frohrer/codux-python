@@ -38,3 +38,6 @@ Homepage = "https://github.com/frohrer/codux-python"
 addopts = "--cov=src/ --cov-report=xml --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codux", "src/latency_measure"]

@@ -2,7 +2,7 @@
 import os
 import pytest
 from unittest.mock import Mock, patch
-from src.latency_measure.main import LatencyMeasurement
+from latency_measure import LatencyMeasurement
 
 @pytest.fixture
 def mock_env_url(monkeypatch):
