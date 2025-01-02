@@ -5,28 +5,29 @@ from unittest.mock import Mock, patch
 from latency_measure import LatencyMeasurement
 
 @pytest.fixture
-def mock_env_url(monkeypatch):
-    """Fixture to set test environment variable"""
-    test_url = "http://test-api.example.com/api/v2"
-    monkeypatch.setenv("CODUX_API_URL", test_url)
-    return test_url
-
-@pytest.fixture
 def mock_client():
     """Fixture to create a mock CodeExecutionClient"""
-    with patch('latency_measure.CodeExecutionClient') as mock:
+    with patch('codux.CodeExecutionClient') as mock:
         client = Mock()
         mock.return_value = client
         yield client
 
-def test_initialization_with_env_url(mock_env_url):
-    """Test that LatencyMeasurement uses environment URL"""
-    measurement = LatencyMeasurement()
-    assert measurement.base_url == mock_env_url
+def test_initialization_default():
+    """Test that LatencyMeasurement uses default URL when env not set"""
+    with patch.dict(os.environ, {}, clear=True):  # Clear env vars
+        measurement = LatencyMeasurement()
+        assert measurement.base_url == "http://localhost/api/v2"  # Default URL
 
-def test_initialization_with_override_url(mock_env_url):
+def test_initialization_with_env_url():
+    """Test that LatencyMeasurement uses environment URL"""
+    api_url = os.getenv('CODUX_API_URL', "http://localhost/api/v2")
+    measurement = LatencyMeasurement()
+    assert measurement.base_url == api_url
+
+def test_initialization_with_override_url():
     """Test that provided URL overrides environment URL"""
-    override_url = "http://override-api.example.com/api/v2"
+    api_url = os.getenv('CODUX_API_URL', "http://localhost/api/v2")
+    override_url = f"{api_url}/override"
     measurement = LatencyMeasurement(base_url=override_url)
     assert measurement.base_url == override_url
 
