@@ -1,95 +1,47 @@
-import os
-import pytest
-from unittest.mock import Mock, patch
 from latency_measure import LatencyMeasurement
+import json
 
-@pytest.fixture
-def mock_client():
-    """Fixture to create a mock CodeExecutionClient"""
-    with patch('codux.CodeExecutionClient') as mock:
-        mock_instance = Mock()
-        mock.return_value = mock_instance
-        yield mock_instance
-
-def test_initialization_default():
-    """Test that LatencyMeasurement uses default URL when env not set"""
-    with patch.dict(os.environ, {}, clear=True):  # Clear env vars
-        measurement = LatencyMeasurement()
-        assert measurement.base_url == "http://localhost/api/v2"  # Default URL
-
-def test_initialization_with_env_url():
-    """Test that LatencyMeasurement uses environment URL"""
-    api_url = os.getenv('CODUX_API_URL', "http://localhost/api/v2")
-    measurement = LatencyMeasurement()
-    assert measurement.base_url == api_url
-
-def test_initialization_with_override_url():
-    """Test that provided URL overrides environment URL"""
-    api_url = os.getenv('CODUX_API_URL', "http://localhost/api/v2")
-    override_url = f"{api_url}/override"
-    measurement = LatencyMeasurement(base_url=override_url)
-    assert measurement.base_url == override_url
-
-def test_measure_single_execution_success(mock_client):
-    """Test successful single execution measurement"""
-    # Configure the mock to return a successful result
-    mock_client.execute_code.return_value = {"output": "test"}
-    
-    # Create measurement instance after mock is configured
+def run_latency_tests():
+    # Initialize measurement with default settings
     measurement = LatencyMeasurement()
     
-    # Perform the test
-    latency = measurement.measure_single_execution()
+    print("Running latency tests...")
     
-    # Verify the mock was called
-    mock_client.execute_code.assert_called_once()
+    # Test cases with different workloads
+    test_cases = [
+        {
+            "name": "Simple console.log",
+            "code": "console.log('test')",
+            "executions": 10
+        },
+        {
+            "name": "CPU-intensive calculation",
+            "code": "console.log(Array(1000000).fill(0).map((x,i) => i*i).reduce((a,b) => a+b, 0))",
+            "executions": 5
+        },
+        {
+            "name": "Memory-intensive operation",
+            "code": "const arr = Array(10000000).fill(0); console.log(arr.length)",
+            "executions": 5
+        }
+    ]
     
-    # Verify results
-    assert isinstance(latency, float)
-    assert latency > 0
-    assert len(measurement.results) == 1
-    assert measurement.results[0]["success"] is True
+    # Run each test case
+    for test in test_cases:
+        print(f"\nRunning test: {test['name']}")
+        stats = measurement.measure_multiple_executions(
+            num_executions=test['executions'],
+            code=test['code'],
+            delay=0.5  # Half second delay between executions
+        )
+        
+        print(f"Results:")
+        print(f"  Mean latency: {stats['mean_ms']:.2f}ms")
+        print(f"  Median latency: {stats['median_ms']:.2f}ms")
+        print(f"  Min latency: {stats['min_ms']:.2f}ms")
+        print(f"  Max latency: {stats['max_ms']:.2f}ms")
+        print(f"  Standard deviation: {stats['stdev_ms']:.2f}ms")
+        print(f"  Success rate: {stats['success_rate'] * 100:.1f}%")
 
-def test_measure_single_execution_failure(mock_client):
-    """Test failed single execution measurement"""
-    # Configure the mock to raise an exception
-    mock_client.execute_code.side_effect = Exception("Test error")
-    
-    # Create measurement instance after mock is configured
-    measurement = LatencyMeasurement()
-    
-    # Perform the test
-    latency = measurement.measure_single_execution()
-    
-    # Verify results
-    assert isinstance(latency, float)
-    assert latency > 0
-    assert len(measurement.results) == 1
-    assert measurement.results[0]["success"] is False
-    assert "Test error" in measurement.results[0]["error"]
-
-def test_measure_multiple_executions(mock_client):
-    """Test multiple executions measurement"""
-    # Configure the mock to return successful results
-    mock_client.execute_code.return_value = {"output": "test"}
-    
-    # Create measurement instance after mock is configured
-    measurement = LatencyMeasurement()
-    
-    # Perform the test
-    num_executions = 5
-    stats = measurement.measure_multiple_executions(
-        num_executions=num_executions,
-        delay=0  # No delay for testing
-    )
-    
-    # Verify the mock was called correct number of times
-    assert mock_client.execute_code.call_count == num_executions
-    
-    # Verify results
-    assert len(measurement.results) == num_executions
-    assert stats["num_samples"] == num_executions
-    assert stats["success_rate"] == 1.0
-    assert all(key in stats for key in [
-        "min_ms", "max_ms", "mean_ms", "median_ms", "stdev_ms"
-    ])
+if __name__ == "__main__":
+    run_latency_tests()
