@@ -14,7 +14,7 @@ def mock_env_url(monkeypatch):
 @pytest.fixture
 def mock_client():
     """Fixture to create a mock CodeExecutionClient"""
-    with patch('src.latency_measure.main.CodeExecutionClient') as mock:
+    with patch('latency_measure.CodeExecutionClient') as mock:
         client = Mock()
         mock.return_value = client
         yield client
