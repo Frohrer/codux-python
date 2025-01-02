@@ -14,8 +14,32 @@ class LatencyMeasurement:
             base_url: Optional URL override. If not provided, uses CODUX_API_URL environment variable
         """
         self.base_url = base_url or os.getenv('CODUX_API_URL', 'http://localhost/api/v2')
-        self.client = CodeExecutionClient(base_url=self.base_url)
+        
+        # Get headers from environment variables
+        header1_name = os.getenv('CODUX_HEADER1_NAME')
+        header1_value = os.getenv('CODUX_HEADER1_VALUE')
+        header2_name = os.getenv('CODUX_HEADER2_NAME')
+        header2_value = os.getenv('CODUX_HEADER2_VALUE')
+        
+        # Build headers dictionary, only including headers that are fully defined
+        headers = {}
+        if header1_name and header1_value:
+            headers[header1_name] = header1_value
+        if header2_name and header2_value:
+            headers[header2_name] = header2_value
+            
+        self.client = CodeExecutionClient(
+            base_url=self.base_url,
+            headers=headers
+        )
         self.results: List[Dict] = []
+        
+        # Store header config in results for debugging
+        self.headers_config = {
+            'header1_name': header1_name,
+            'header2_name': header2_name,
+            'headers_used': bool(headers)
+        }
 
     def measure_single_execution(
         self, 
@@ -42,7 +66,8 @@ class LatencyMeasurement:
                 "timestamp": time.time(),
                 "latency_ms": latency,
                 "success": True,
-                "result": result
+                "result": result,
+                "headers_config": self.headers_config
             }
             
         except Exception as e:
@@ -53,7 +78,8 @@ class LatencyMeasurement:
                 "timestamp": time.time(),
                 "latency_ms": latency,
                 "success": False,
-                "error": str(e)
+                "error": str(e),
+                "headers_config": self.headers_config
             }
             
         self.results.append(execution_data)
@@ -91,7 +117,8 @@ class LatencyMeasurement:
             "median_ms": statistics.median(latencies),
             "stdev_ms": statistics.stdev(latencies) if len(latencies) > 1 else 0,
             "num_samples": len(latencies),
-            "success_rate": sum(r["success"] for r in self.results[-num_executions:]) / num_executions
+            "success_rate": sum(r["success"] for r in self.results[-num_executions:]) / num_executions,
+            "headers_config": self.headers_config
         }
         
         return stats
@@ -107,6 +134,16 @@ def main():
     api_url = os.getenv('CODUX_API_URL')
     if not api_url:
         print("Warning: CODUX_API_URL not set, using default")
+        
+    # Check for header environment variables
+    header1_name = os.getenv('CODUX_HEADER1_NAME')
+    header1_value = os.getenv('CODUX_HEADER1_VALUE')
+    header2_name = os.getenv('CODUX_HEADER2_NAME')
+    header2_value = os.getenv('CODUX_HEADER2_VALUE')
+    
+    if not all([header1_name, header1_value, header2_name, header2_value]):
+        print("Warning: One or more header environment variables not set")
+        print("Expected: CODUX_HEADER1_NAME, CODUX_HEADER1_VALUE, CODUX_HEADER2_NAME, CODUX_HEADER2_VALUE")
     
     # Initialize measurement
     latency_measure = LatencyMeasurement(api_url)

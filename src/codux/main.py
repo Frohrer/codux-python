@@ -38,13 +38,58 @@ class ExecutionResult:
     web_app_url: Optional[str] = None
 
 class CodeExecutionClient:
-    def __init__(self, base_url: str = "http://localhost/api/v2", timeout: int = 30):
+    def __init__(
+        self, 
+        base_url: str = "http://localhost/api/v2", 
+        timeout: int = 30,
+        headers: Optional[Dict[str, str]] = None
+    ):
+        """
+        Initialize the CodeExecutionClient
+        
+        Args:
+            base_url: Base URL for the API
+            timeout: Request timeout in seconds
+            headers: Optional dictionary of default headers to include in all requests
+        """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.session = requests.Session()
+        if headers:
+            self.session.headers.update(headers)
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    def _make_request(
+        self, 
+        method: str, 
+        endpoint: str, 
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Make an HTTP request to the API
+        
+        Args:
+            method: HTTP method
+            endpoint: API endpoint
+            headers: Optional additional headers for this specific request
+            **kwargs: Additional arguments passed to requests.request()
+            
+        Returns:
+            Dict containing the JSON response
+            
+        Raises:
+            PackageNotFoundError: When a package is not found
+            PackageAlreadyInstalledError: When attempting to install an existing package
+            CodeExecutionError: For other API errors
+        """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        
+        # Merge request-specific headers with session headers
+        if headers:
+            request_headers = self.session.headers.copy()
+            request_headers.update(headers)
+            kwargs['headers'] = request_headers
+            
         try:
             response = self.session.request(method=method, url=url, timeout=self.timeout, **kwargs)
             
@@ -65,33 +110,102 @@ class CodeExecutionClient:
                 raise CodeExecutionError(f"API request failed: {error_msg}")
             raise CodeExecutionError(f"API request failed: {str(e)}")
 
-    def list_runtimes(self) -> List[Runtime]:
-        response = self._make_request("GET", "/runtimes")
+    def list_runtimes(self, headers: Optional[Dict[str, str]] = None) -> List[Runtime]:
+        """
+        List available runtimes
+        
+        Args:
+            headers: Optional headers for this request
+            
+        Returns:
+            List of Runtime objects
+        """
+        response = self._make_request("GET", "/runtimes", headers=headers)
         return [Runtime(**runtime) for runtime in response]
 
-    def list_packages(self) -> List[Package]:
-        response = self._make_request("GET", "/packages")
+    def list_packages(self, headers: Optional[Dict[str, str]] = None) -> List[Package]:
+        """
+        List installed packages
+        
+        Args:
+            headers: Optional headers for this request
+            
+        Returns:
+            List of Package objects
+        """
+        response = self._make_request("GET", "/packages", headers=headers)
         return [Package(**package) for package in response]
 
-    def install_package(self, language: str, version: str) -> bool:
-        """Returns True if package was installed, False if already installed"""
+    def install_package(
+        self, 
+        language: str, 
+        version: str, 
+        headers: Optional[Dict[str, str]] = None
+    ) -> bool:
+        """
+        Install a package
+        
+        Args:
+            language: Programming language
+            version: Language version
+            headers: Optional headers for this request
+            
+        Returns:
+            True if package was installed, False if already installed
+        """
         payload = {"language": language, "version": version}
         try:
-            self._make_request("POST", "/packages", json=payload)
+            self._make_request("POST", "/packages", json=payload, headers=headers)
             return True
         except PackageAlreadyInstalledError:
             return False
 
-    def uninstall_package(self, language: str, version: str) -> None:
+    def uninstall_package(
+        self, 
+        language: str, 
+        version: str, 
+        headers: Optional[Dict[str, str]] = None
+    ) -> None:
+        """
+        Uninstall a package
+        
+        Args:
+            language: Programming language
+            version: Language version
+            headers: Optional headers for this request
+        """
         payload = {"language": language, "version": version}
-        self._make_request("DELETE", "/packages", json=payload)
+        self._make_request("DELETE", "/packages", json=payload, headers=headers)
 
-    def terminate_process(self, process_id: str) -> None:
-        self._make_request("DELETE", f"/process/{process_id}")
+    def terminate_process(
+        self, 
+        process_id: str, 
+        headers: Optional[Dict[str, str]] = None
+    ) -> None:
+        """
+        Terminate a running process
+        
+        Args:
+            process_id: ID of the process to terminate
+            headers: Optional headers for this request
+        """
+        self._make_request("DELETE", f"/process/{process_id}", headers=headers)
 
-    async def connect_websocket(self) -> websockets.WebSocketClientProtocol:
+    async def connect_websocket(
+        self,
+        headers: Optional[Dict[str, str]] = None
+    ) -> websockets.WebSocketClientProtocol:
+        """
+        Connect to the WebSocket endpoint
+        
+        Args:
+            headers: Optional headers for the WebSocket connection
+            
+        Returns:
+            WebSocket connection object
+        """
         ws_url = f"ws://{self.base_url.split('://', 1)[1]}/connect"
-        return await websockets.connect(ws_url)
+        return await websockets.connect(ws_url, extra_headers=headers)
 
     def execute_code(
         self,
@@ -108,7 +222,8 @@ class CodeExecutionClient:
         run_timeout: Optional[float] = None,
         compile_timeout: Optional[float] = None,
         run_cpu_time: Optional[float] = None,
-        compile_cpu_time: Optional[float] = None
+        compile_cpu_time: Optional[float] = None,
+        headers: Optional[Dict[str, str]] = None
     ) -> ExecutionResult:
         """
         Execute code in the specified programming language
@@ -128,6 +243,7 @@ class CodeExecutionClient:
             compile_timeout: Optional compile timeout
             run_cpu_time: Optional run CPU time limit
             compile_cpu_time: Optional compile CPU time limit
+            headers: Optional headers for this request
         
         Returns:
             ExecutionResult object containing execution results
@@ -161,7 +277,7 @@ class CodeExecutionClient:
         if compile_cpu_time is not None:
             payload["compile_cpu_time"] = compile_cpu_time
 
-        response = self._make_request("POST", "/execute", json=payload)
+        response = self._make_request("POST", "/execute", json=payload, headers=headers)
         
         result = ExecutionResult()
         
