@@ -4,7 +4,7 @@ import time
 import statistics
 import json
 from typing import List, Dict
-from src.codux.main import CodeExecutionClient, ExecutionResult
+from codux import CodeExecutionClient, ExecutionResult
 
 class LatencyMeasurement:
     def __init__(self, base_url: str = None):
