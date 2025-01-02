@@ -1,17 +1,28 @@
-from codux.src.codux.main import CodeExecutionClient, ExecutionResult
+# src/latency_measure/main.py
+import os
 import time
 import statistics
-from typing import List, Dict
 import json
+from typing import List, Dict
+from codux.src.codux.main import CodeExecutionClient, ExecutionResult
 
 class LatencyMeasurement:
-    def __init__(self, base_url: str = "http://code-api.home/api/v2"):
-        self.client = CodeExecutionClient(base_url=base_url)
+    def __init__(self, base_url: str = None):
+        """
+        Initialize the LatencyMeasurement class
+        Args:
+            base_url: Optional URL override. If not provided, uses CODUX_API_URL environment variable
+        """
+        self.base_url = base_url or os.getenv('CODUX_API_URL', 'http://localhost/api/v2')
+        self.client = CodeExecutionClient(base_url=self.base_url)
         self.results: List[Dict] = []
 
-    def measure_single_execution(self, code: str = "console.log(Array(1000000).fill(0).map((x,i) => i*i).reduce((a,b) => a+b, 0))", 
-                               language: str = "javascript",
-                               version: str = "20.11.1") -> float:
+    def measure_single_execution(
+        self, 
+        code: str = "console.log(Array(1000000).fill(0).map((x,i) => i*i).reduce((a,b) => a+b, 0))",
+        language: str = "javascript",
+        version: str = "20.11.1"
+    ) -> float:
         """
         Measure the latency of a single code execution
         Returns the latency in milliseconds
@@ -48,19 +59,30 @@ class LatencyMeasurement:
         self.results.append(execution_data)
         return latency
 
-    def measure_multiple_executions(self, num_executions: int = 10, 
-                                  code: str = "console.log('test')",
-                                  language: str = "javascript",
-                                  version: str = "20.11.1") -> Dict:
+    def measure_multiple_executions(
+        self,
+        num_executions: int = 10,
+        code: str = "console.log('test')",
+        language: str = "javascript",
+        version: str = "20.11.1",
+        delay: float = 0.1
+    ) -> Dict:
         """
         Measure latency over multiple executions and return statistics
+        Args:
+            num_executions: Number of executions to perform
+            code: Code to execute
+            language: Programming language
+            version: Language version
+            delay: Delay between executions in seconds
         """
         latencies = []
         
         for _ in range(num_executions):
             latency = self.measure_single_execution(code, language, version)
             latencies.append(latency)
-            time.sleep(0.1)  # Add small delay between requests
+            if delay > 0:
+                time.sleep(delay)
             
         stats = {
             "min_ms": min(latencies),
@@ -80,10 +102,14 @@ class LatencyMeasurement:
         """
         return json.dumps(self.results, indent=2)
 
-# Usage example
-if __name__ == "__main__":
+def main():
+    # Get URL from environment variable
+    api_url = os.getenv('CODUX_API_URL')
+    if not api_url:
+        print("Warning: CODUX_API_URL not set, using default")
+    
     # Initialize measurement
-    latency_measure = LatencyMeasurement()
+    latency_measure = LatencyMeasurement(api_url)
     
     # Measure single execution
     print("Single execution latency:", latency_measure.measure_single_execution(), "ms")
@@ -92,3 +118,6 @@ if __name__ == "__main__":
     stats = latency_measure.measure_multiple_executions(num_executions=100)
     print("\nLatency statistics over 100 executions:")
     print(json.dumps(stats, indent=2))
+
+if __name__ == "__main__":
+    main()
