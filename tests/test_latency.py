@@ -1,4 +1,3 @@
-# tests/test_latency.py
 import os
 import pytest
 from unittest.mock import Mock, patch
@@ -7,7 +6,7 @@ from latency_measure import LatencyMeasurement
 @pytest.fixture
 def mock_client():
     """Fixture to create a mock CodeExecutionClient"""
-    with patch('codux.CodeExecutionClient') as mock:
+    with patch('latency_measure.main.codux.CodeExecutionClient') as mock:
         client = Mock()
         mock.return_value = client
         yield client
@@ -33,11 +32,19 @@ def test_initialization_with_override_url():
 
 def test_measure_single_execution_success(mock_client):
     """Test successful single execution measurement"""
+    # Configure the mock to return a successful result
     mock_client.execute_code.return_value = {"output": "test"}
+    
+    # Create measurement instance after mock is configured
     measurement = LatencyMeasurement()
     
+    # Perform the test
     latency = measurement.measure_single_execution()
     
+    # Verify the mock was called
+    mock_client.execute_code.assert_called_once()
+    
+    # Verify results
     assert isinstance(latency, float)
     assert latency > 0
     assert len(measurement.results) == 1
@@ -45,11 +52,16 @@ def test_measure_single_execution_success(mock_client):
 
 def test_measure_single_execution_failure(mock_client):
     """Test failed single execution measurement"""
+    # Configure the mock to raise an exception
     mock_client.execute_code.side_effect = Exception("Test error")
+    
+    # Create measurement instance after mock is configured
     measurement = LatencyMeasurement()
     
+    # Perform the test
     latency = measurement.measure_single_execution()
     
+    # Verify results
     assert isinstance(latency, float)
     assert latency > 0
     assert len(measurement.results) == 1
@@ -58,15 +70,23 @@ def test_measure_single_execution_failure(mock_client):
 
 def test_measure_multiple_executions(mock_client):
     """Test multiple executions measurement"""
+    # Configure the mock to return successful results
     mock_client.execute_code.return_value = {"output": "test"}
+    
+    # Create measurement instance after mock is configured
     measurement = LatencyMeasurement()
     
+    # Perform the test
     num_executions = 5
     stats = measurement.measure_multiple_executions(
         num_executions=num_executions,
         delay=0  # No delay for testing
     )
     
+    # Verify the mock was called correct number of times
+    assert mock_client.execute_code.call_count == num_executions
+    
+    # Verify results
     assert len(measurement.results) == num_executions
     assert stats["num_samples"] == num_executions
     assert stats["success_rate"] == 1.0
