@@ -6,10 +6,10 @@ from latency_measure import LatencyMeasurement
 @pytest.fixture
 def mock_client():
     """Fixture to create a mock CodeExecutionClient"""
-    with patch('latency_measure.main.codux.CodeExecutionClient') as mock:
-        client = Mock()
-        mock.return_value = client
-        yield client
+    with patch('codux.CodeExecutionClient') as mock:
+        mock_instance = Mock()
+        mock.return_value = mock_instance
+        yield mock_instance
 
 def test_initialization_default():
     """Test that LatencyMeasurement uses default URL when env not set"""
